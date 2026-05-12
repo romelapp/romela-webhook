@@ -2,8 +2,12 @@ import { createServer } from "node:http";
 import { createReadStream, existsSync } from "node:fs";
 import { extname, join, normalize } from "node:path";
 
+// ✅ Use Render's dynamic port
 const port = Number(process.env.PORT || 4173);
-const host = "127.0.0.1";
+
+// ❗ MUST be 0.0.0.0 (not 127.0.0.1)
+const host = "0.0.0.0";
+
 const root = process.cwd();
 
 const mimeTypes = {
@@ -31,5 +35,5 @@ createServer((request, response) => {
 
   createReadStream(filePath).pipe(response);
 }).listen(port, host, () => {
-  console.log(`Earnly running at http://${host}:${port}`);
+  console.log(`Server running on http://${host}:${port}`);
 });
