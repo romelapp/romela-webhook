@@ -1,39 +1,66 @@
 import { createServer } from "node:http";
-import { createReadStream, existsSync } from "node:fs";
-import { extname, join, normalize } from "node:path";
+import { createClient } from "@supabase/supabase-js";
 
-// ✅ Use Render's dynamic port
-const port = Number(process.env.PORT || 4173);
+const port = process.env.PORT || 10000;
 
-// ❗ MUST be 0.0.0.0 (not 127.0.0.1)
-const host = "0.0.0.0";
+// 🔐 Supabase config (use your real values later)
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
-const root = process.cwd();
+createServer(async (req, res) => {
+    // TEST ROUTE
+  if (req.method === "GET" && req.url === "/health") {
+    console.log("Health check hit");
+    res.writeHead(200);
+    res.end("OK");
+    return;
+  }
+  // ✅ PAYFAST WEBHOOK
+  if (req.method === "POST" && req.url === "/payfast-itn") {
+    let body = "";
 
-const mimeTypes = {
-  ".css": "text/css; charset=utf-8",
-  ".html": "text/html; charset=utf-8",
-  ".js": "text/javascript; charset=utf-8",
-  ".json": "application/json; charset=utf-8",
-  ".svg": "image/svg+xml; charset=utf-8",
-};
+    req.on("data", chunk => {
+      body += chunk.toString();
+    });
 
-createServer((request, response) => {
-  const urlPath = request.url === "/" ? "/index.html" : request.url || "/index.html";
-  const safePath = normalize(urlPath).replace(/^(\.\.[/\\])+/, "");
-  const filePath = join(root, safePath);
+    req.on("end", async () => {
+      const params = new URLSearchParams(body);
 
-  if (!existsSync(filePath)) {
-    response.writeHead(404, { "content-type": "text/plain; charset=utf-8" });
-    response.end("Not found");
+      const requestId = params.get("custom_str1");
+      const paymentStatus = params.get("payment_status");
+
+      console.log("🔥 PayFast ITN received");
+      console.log("Request ID:", requestId);
+      console.log("Status:", paymentStatus);
+
+      if (paymentStatus === "COMPLETE") {
+        const { error } = await supabase
+          .from("payment_requests")
+          .update({
+            status: "paid",
+            paid_at: new Date().toISOString(),
+          })
+          .eq("id", requestId);
+
+        if (error) {
+          console.log("❌ Supabase update error:", error);
+        } else {
+          console.log("✅ Payment marked as paid");
+        }
+      }
+
+      res.writeHead(200);
+      res.end("OK");
+    });
+
     return;
   }
 
-  response.writeHead(200, {
-    "content-type": mimeTypes[extname(filePath)] || "application/octet-stream",
-  });
-
-  createReadStream(filePath).pipe(response);
-}).listen(port, host, () => {
-  console.log(`Server running on http://${host}:${port}`);
+  // fallback
+  res.writeHead(200);
+  res.end("Server running");
+}).listen(port, () => {
+  console.log(`🚀 Server running on port ${port}`);
 });
