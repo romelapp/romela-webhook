@@ -38,10 +38,9 @@ createServer(async (req, res) => {
       if (paymentStatus === "COMPLETE") {
         const { error } = await supabase
           .from("payment_requests")
-          .update({
-            status: "paid",
-            paid_at: new Date().toISOString(),
-          })
+          ..update({
+  status: "paid"
+})
           .eq("id", requestId);
 
         if (error) {
